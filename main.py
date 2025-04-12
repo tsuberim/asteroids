@@ -23,7 +23,7 @@ else:
     print("Using CPU")
 
 run_name = 'asteroids-world-model'
-run = wandb.init(project="asteroids_world_model", name=run_name, resume="allow")
+run = wandb.init(project="asteroids_world_model", id=run_name, name=run_name, resume="allow")
 
 def show(frame):
     # frame = frame.detach().permute(1, 2, 0).cpu().numpy()
