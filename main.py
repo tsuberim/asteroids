@@ -32,8 +32,10 @@ def show(frame):
     plt.axis("off")
     plt.show()
 
+
+bank_size = 512
 class Bank:
-    def __init__(self, max_size=512):
+    def __init__(self, max_size=bank_size):
         self.max_size = max_size
         self.size = 0
         self.i = 0
@@ -134,7 +136,7 @@ def main():
     # Set global device to MPS if available
     print(f"Using device: {device}")  # Check if MPS is active
 
-    lr = 1e-4
+    lr = 2e-4
     batch_size = 128
     bank = Bank()
     agent = Agent(bank)
@@ -173,7 +175,7 @@ def main():
     
         if step % batch_size == 0:
             loss, grad_norm = agent.train_world_model_step(batch_size=batch_size)
-            metadata = {"loss": loss.item(), "grad_norm": grad_norm.item()}
+            metadata = {"loss": loss.item(), "grad_norm": grad_norm.item(), "lr": lr, "batch_size": batch_size, "bank_size": bank_size}
             wandb.log(metadata)
 
             # Save checkpoint
