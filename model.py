@@ -16,7 +16,7 @@ class ConvBlock(nn.Module):
         return x
 
 class UNet(nn.Module):
-    def __init__(self, in_channels=12, out_channels=3, features=[32, 64, 128, 256], action_space_size=14, action_embedding_dim=3):
+    def __init__(self, in_channels=12, out_channels=3, features=[64, 128, 256, 512], action_space_size=14, action_embedding_dim=3):
         super().__init__()
         self.action_embedding = nn.Embedding(action_space_size, action_embedding_dim)
         self.encoder = nn.ModuleList()
