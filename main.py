@@ -10,7 +10,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 C, H, W = 3, 210, 160
-device = t.device("mps")
+
+
+if t.cuda.is_available():
+    device = t.device("cuda")
+    print(f"Using CUDA device: {t.cuda.get_device_name(0)}")
+elif t.backends.mps.is_available():
+    device = t.device("mps")
+    print("Using MPS device")
+else:
+    device = t.device("cpu")
+    print("Using CPU")
 
 run = wandb.init(project="asteroids_world_model")
 
