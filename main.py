@@ -22,7 +22,8 @@ else:
     device = t.device("cpu")
     print("Using CPU")
 
-run = wandb.init(project="asteroids_world_model")
+run_name = 'asteroids-world-model'
+run = wandb.init(project="asteroids_world_model", name=run_name, resume="allow")
 
 def show(frame):
     # frame = frame.detach().permute(1, 2, 0).cpu().numpy()
@@ -98,16 +99,21 @@ class Agent(nn.Module):
         return ob.detach()
     
     def train_world_model_step(self, batch_size):
+        print('learning')
         self.optim.zero_grad()
-        frames, actions, next_frame, has = self.bank.frames_batch(batch_size)
-        if not has:
-            return t.zeros(1), t.zeros(1)
-    
-        pred = self.unet(frames, actions)
-        loss = self.next_frame_pred_loss(pred, next_frame)
 
-        loss.backward()
-        grad_norm = t.norm(t.stack([t.norm(p.grad, 2) for p in self.parameters() if p.grad is not None]), 2)
+        for i in range(4):
+            frames, actions, next_frame, has = self.bank.frames_batch(batch_size)
+            if not has:
+                return t.zeros(1), t.zeros(1)
+        
+            pred = self.unet(frames, actions)
+            loss = self.next_frame_pred_loss(pred, next_frame)
+
+            loss.backward()
+            grad_norm = t.norm(t.stack([t.norm(p.grad, 2) for p in self.parameters() if p.grad is not None]), 2)
+            print(f'learning {i}')
+        
         self.optim.step()
 
         pred_img = wandb.Image(pred[0].detach().permute(0, 2, 1).cpu().numpy().transpose(2, 1, 0))
@@ -122,34 +128,6 @@ class Agent(nn.Module):
     
     def reset(self, ob):
         pass
-
-    def load(self, filename="checkpoint.pth", artifact_name="world_model_checkpoint"):
-        """Load model and optimizer state from a wandb artifact if it exists."""
-        try:
-            artifact = wandb.use_artifact(f"{artifact_name}:latest", type="model")
-            artifact_dir = artifact.download()
-            checkpoint_path = os.path.join(artifact_dir, filename)
-            checkpoint = t.load(checkpoint_path, map_location=device)
-            self.load_state_dict(checkpoint["model_state_dict"])
-            self.optim.load_state_dict(checkpoint["optimizer_state_dict"])
-            print("Loaded checkpoint from", checkpoint_path)
-            return checkpoint
-        except Exception as e:
-            print("No checkpoint loaded; starting from scratch. Exception:", e)
-            return None
-
-    def save(self, loss, filename="checkpoint.pth", artifact_name="world_model_checkpoint"):
-        """Save model and optimizer state to a file and log as a wandb artifact."""
-        checkpoint = {
-            "model_state_dict": self.state_dict(),
-            "optimizer_state_dict": self.optim.state_dict(),
-            "loss": loss,
-        }
-        t.save(checkpoint, filename)
-        artifact = wandb.Artifact(artifact_name, type="model")
-        artifact.add_file(filename)
-        wandb.log_artifact(artifact)
-        print("Checkpoint saved as artifact:", artifact_name)
         
 
 def main():
@@ -162,32 +140,60 @@ def main():
     agent = Agent(bank)
     agent.optim = optim.Adam(agent.parameters(), lr=lr)
     agent = agent.to(device)
-    # agent.load()
+
+    # Load latest checkpoint if exists
+    step = 0
+    try:
+        artifact = wandb.use_artifact(f'{run.entity}/{run.project}/{run_name}:latest', type='model')
+        artifact_dir = artifact.download()
+        checkpoint_path = os.path.join(artifact_dir, "model.pth")
+        checkpoint = t.load(checkpoint_path, map_location=device)
+        agent.load_state_dict(checkpoint['model_state_dict'])
+        agent.optim.load_state_dict(checkpoint['optimizer_state_dict'])
+        step = checkpoint.get('step', 'unknown')
+        print(f"Loaded checkpoint from step: {checkpoint.get('step', 'unknown')}")
+    except wandb.CommError as e:
+        print(f"Warning: Could not load checkpoint. Starting from scratch. Error: {e}")
+    except FileNotFoundError:
+        print("No checkpoint found. Starting from scratch.")
 
     env = gym.make('AsteroidsNoFrameskip-v4', obs_type="rgb")
     ob, info = env.reset(seed=42)
     prev = np.zeros_like(ob)
     rew = 0.0
-    idx = 0
+    first_frame = True
     while True:
         real_ob = ob + prev # atari env frames flickers between asteroids and player
         act = agent.play(real_ob, rew)
         prev = ob
-        if idx == 0:
+        if first_frame:
             prev = np.zeros_like(ob)
+            first_frame = False
         ob, rew, done, truncated, info = env.step(act)
     
-        if idx % batch_size == 0:
-            for epoch in range(3):
-                loss, grad_norm = agent.train_world_model_step(batch_size=batch_size)
-                wandb.log({"loss": loss.item(), "grad_norm": grad_norm.item()})
-            # agent.save(loss)
+        if step % batch_size == 0:
+            loss, grad_norm = agent.train_world_model_step(batch_size=batch_size)
+            metadata = {"loss": loss.item(), "grad_norm": grad_norm.item()}
+            wandb.log(metadata)
+
+            # Save checkpoint
+            t.save({
+                'step': step,
+                'model_state_dict': agent.state_dict(),
+                'optimizer_state_dict': agent.optim.state_dict(),
+            }, "model.pth")
+            artifact = wandb.Artifact(run_name, type="model", metadata={'step':step,**metadata})
+            artifact.add_file("model.pth")
+            wandb.log_artifact(artifact)
+            os.remove("model.pth")
 
         if done or truncated:
             ob, info = env.reset()
+            prev = np.zeros_like(ob)
+            first_frame = True
             agent.reset(ob)
 
-        idx += 1
+        step += 1
 
 if __name__ == '__main__':
     main()
