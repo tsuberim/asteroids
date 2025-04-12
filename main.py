@@ -164,7 +164,7 @@ def main():
     agent = agent.to(device)
     # agent.load()
 
-    env = gym.make('AsteroidsNoFrameskip-v4', render_mode='human', obs_type="rgb")
+    env = gym.make('AsteroidsNoFrameskip-v4', obs_type="rgb")
     ob, info = env.reset(seed=42)
     prev = np.zeros_like(ob)
     rew = 0.0
