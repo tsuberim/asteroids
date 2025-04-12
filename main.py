@@ -156,7 +156,7 @@ def main():
     # Set global device to MPS if available
     print(f"Using device: {device}")  # Check if MPS is active
 
-    lr = 1e-4
+    lr = 2e-4
     batch_size = 196
     bank = Bank()
     agent = Agent(bank)
