@@ -33,7 +33,7 @@ def show(frame):
     plt.show()
 
 class Bank:
-    def __init__(self, max_size=1024):
+    def __init__(self, max_size=512):
         self.max_size = max_size
         self.size = 0
         self.i = 0
