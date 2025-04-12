@@ -66,7 +66,7 @@ class Agent(nn.Module):
     def __init__(self, bank, max_prev_obs=4, num_actions=14, temp=1, lr=1e-4):
         super(Agent, self).__init__()
         self.unet = UNet()
-        self.actor = FullyConnectedNet(168960, [1024, 1024, 512], num_actions)
+        self.actor = FullyConnectedNet(84480, [1024, 1024, 512], num_actions)
         self.max_prev_obs = max_prev_obs
         self.frames = t.zeros(1, C * 4, H, W).to(device)
         self.actions = t.zeros((1, 4), dtype=int).to(device) # NOOP
@@ -157,7 +157,7 @@ def main():
     print(f"Using device: {device}")  # Check if MPS is active
 
     lr = 1e-4
-    batch_size = 128
+    batch_size = 256
     bank = Bank()
     agent = Agent(bank)
     agent.optim = optim.Adam(agent.parameters(), lr=lr)
